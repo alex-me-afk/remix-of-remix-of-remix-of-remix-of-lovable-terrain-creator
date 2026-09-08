@@ -49,23 +49,40 @@ export type Tunnel = {
 };
 
 /**
- * Real-world footprints of the imported building pack (metres). Used by the
- * terrain model to carve level ground before the meshes are placed on it.
+ * Measured footprints (metres) of the imported building models. Filled in from
+ * the real GLB bounding boxes once they load, so the terrain carves level
+ * ground that matches each model at its original scale.
  */
 export const BUILDING_FOOTPRINTS: Record<string, { w: number; d: number; h: number }> = {
-  house_0: { w: 16.6, d: 22.9, h: 12.0 },
-  house_1: { w: 27.2, d: 20.8, h: 7.9 },
-  house_2: { w: 10.7, d: 10.7, h: 18.2 },
-  house_3: { w: 10.2, d: 11.8, h: 7.7 },
-  house_4: { w: 19.2, d: 13.2, h: 8.5 },
-  house_5: { w: 5.6, d: 10.4, h: 6.7 },
-  house_6: { w: 8.3, d: 6.8, h: 3.7 },
-  clock_tower: { w: 65.2, d: 65.2, h: 35.4 },
-  factory: { w: 63.2, d: 84.3, h: 14.2 },
+  BROKEN_HOUSE: { w: 16.6, d: 22.9, h: 12.0 },
+  VILLA_3_FLOORS: { w: 27.2, d: 20.8, h: 14.0 },
+  BIG_TOWER_5_FLOORS: { w: 10.7, d: 10.7, h: 18.2 },
+  STONE_HOUSE_2_FLOORS: { w: 10.2, d: 11.8, h: 7.7 },
+  PLASTER_HOUSE_2_FLOORS: { w: 19.2, d: 13.2, h: 8.5 },
+  DUBPLEX_2_FLOORS: { w: 15.6, d: 12.4, h: 8.7 },
+  WOODEN_SHACK: { w: 8.3, d: 6.8, h: 3.7 },
+  WOODEN_WATCH_POST: { w: 6.0, d: 6.0, h: 9.0 },
+  THE_CLOCK_TOWER: { w: 65.2, d: 65.2, h: 35.4 },
+  FACTORYY: { w: 63.2, d: 84.3, h: 14.2 },
 };
 
-export const HOUSE_KINDS = ["house_0", "house_1", "house_2", "house_3", "house_4", "house_5", "house_6"];
-export const LANDMARK_KINDS = ["clock_tower", "factory"];
+/** replaces a footprint with the real measured size of the loaded model */
+export function setBuildingFootprint(kind: string, f: { w: number; d: number; h: number }) {
+  BUILDING_FOOTPRINTS[kind] = f;
+}
+
+export const HOUSE_KINDS = [
+  "BROKEN_HOUSE",
+  "VILLA_3_FLOORS",
+  "BIG_TOWER_5_FLOORS",
+  "STONE_HOUSE_2_FLOORS",
+  "PLASTER_HOUSE_2_FLOORS",
+  "DUBPLEX_2_FLOORS",
+  "WOODEN_SHACK",
+  "WOODEN_WATCH_POST",
+];
+/** used exactly once each on the whole map */
+export const LANDMARK_KINDS = ["THE_CLOCK_TOWER", "FACTORYY"];
 
 /** footprint radius of a building kind (with a small walking margin) */
 export function buildingRadius(kind: string) {
