@@ -14,6 +14,7 @@ import {
 import { buildTiledTerrain } from "./splat";
 import { generateScatter, type Placement, type Scatter } from "./vegetation";
 import { meshSurfaceHeight, terrainHeight } from "./surface";
+import { buildBuildings, type BuildingTemplates } from "./buildings";
 
 
 
@@ -29,6 +30,7 @@ export type BuildResult = {
   segments: number;
 
   vegetation: THREE.Group;
+  buildings: THREE.Group;
   scatter: Scatter;
   stats: {
     vertices: number;
@@ -40,6 +42,7 @@ export type BuildResult = {
     trees: number;
     rocks: number;
     grass: number;
+    buildings: number;
   };
 };
 
@@ -76,7 +79,7 @@ export function maxFloatGap(scatter: Scatter, grids: Grids, segments: number) {
 
 export async function buildIsland(
   seed: number,
-  opts: { segments?: number; templates?: VegTemplates } = {},
+  opts: { segments?: number; templates?: VegTemplates; buildings?: BuildingTemplates } = {},
   onProgress?: (label: string) => void,
 ): Promise<BuildResult> {
   const segments = opts.segments ?? 512;
@@ -157,9 +160,12 @@ export async function buildIsland(
   await frame();
   const vegetation = buildVegetation(scatter, opts.templates);
 
+  onProgress?.("Placing buildings…");
+  const buildings = buildBuildings(model, opts.buildings ?? {}, grids, segments);
+
   const group = new THREE.Group();
   group.name = `BR_Island_${seed}`;
-  group.add(ground, water, tunnels, vegetation);
+  group.add(ground, water, tunnels, vegetation, buildings);
 
   const tri = (geo.index?.count ?? 0) / 3;
   return {
@@ -168,6 +174,7 @@ export async function buildIsland(
     grids,
     segments,
     vegetation,
+    buildings,
     scatter,
 
     stats: {
@@ -180,6 +187,7 @@ export async function buildIsland(
       trees: scatter.trees.length,
       rocks: scatter.rocks.length,
       grass: scatter.grass.length,
+      buildings: model.buildings.length,
     },
   };
 }

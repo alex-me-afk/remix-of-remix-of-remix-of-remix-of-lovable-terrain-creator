@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { buildIsland, buildVegetation, maxFloatGap, snapScatter, type BuildResult, type VegKind, type VegTemplates } from "@/lib/terrain/build";
+import { loadBuildingTemplates, type BuildingTemplates } from "@/lib/terrain/buildings";
 import { bakeInstancesForExport, cleanForExport, countExportMeshes } from "@/lib/terrain/exportUtils";
 
 import { HALF, WORLD, PLAYER_EYE, WATER_LEVEL } from "@/lib/terrain/model";
@@ -49,6 +50,8 @@ export function TerrainViewer() {
   const vegRef = useRef<THREE.Group | null>(null);
   const fpRef = useRef<FirstPerson | null>(null);
   const templatesRef = useRef<VegTemplates>({});
+  const buildingsRef = useRef<BuildingTemplates>({});
+  const bGroupRef = useRef<THREE.Group | null>(null);
   const orbitPose = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
 
   const [seed, setSeed] = useState(1337);
@@ -56,6 +59,7 @@ export function TerrainViewer() {
   const [busy, setBusy] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [showVeg, setShowVeg] = useState(true);
+  const [showBuildings, setShowBuildings] = useState(true);
   const [wireframe, setWireframe] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [replaced, setReplaced] = useState<Record<string, string>>({});
@@ -170,6 +174,9 @@ export function TerrainViewer() {
         const prev = resultRef.current;
         if (prev) {
           scene.remove(prev.group);
+          // the imported building geometries/materials are shared templates —
+          // reused on every regenerate, so they must not be disposed here
+          prev.buildings?.removeFromParent();
           prev.group.traverse((o) => {
             const m = o as THREE.Mesh;
             if (m.geometry) m.geometry.dispose();
@@ -181,13 +188,22 @@ export function TerrainViewer() {
             }
           });
         }
-        const res = await buildIsland(s, { templates: templatesRef.current }, setStatus);
+        if (!Object.keys(buildingsRef.current).length) {
+          buildingsRef.current = await loadBuildingTemplates(setStatus);
+        }
+        const res = await buildIsland(
+          s,
+          { templates: templatesRef.current, buildings: buildingsRef.current },
+          setStatus,
+        );
         scene.add(res.group);
         resultRef.current = res;
         setStats(res.stats);
 
         vegRef.current = res.vegetation;
         res.vegetation.visible = showVeg;
+        bGroupRef.current = res.buildings;
+        res.buildings.visible = showBuildings;
         setStatus("Ready");
       } catch (e) {
         console.error(e);
@@ -196,7 +212,7 @@ export function TerrainViewer() {
         setBusy(false);
       }
     },
-    [showVeg],
+    [showVeg, showBuildings],
   );
 
   useEffect(() => {
@@ -207,6 +223,10 @@ export function TerrainViewer() {
   useEffect(() => {
     if (vegRef.current) vegRef.current.visible = showVeg;
   }, [showVeg]);
+
+  useEffect(() => {
+    if (bGroupRef.current) bGroupRef.current.visible = showBuildings;
+  }, [showBuildings]);
 
   useEffect(() => {
     const res = resultRef.current;
@@ -431,6 +451,14 @@ export function TerrainViewer() {
                   <input type="checkbox" checked={wireframe} onChange={(e) => setWireframe(e.target.checked)} />
                   Wireframe
                 </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={showBuildings}
+                    onChange={(e) => setShowBuildings(e.target.checked)}
+                  />
+                  Buildings
+                </label>
               </div>
               <button
                 disabled={busy}
@@ -516,6 +544,7 @@ export function TerrainViewer() {
                   <li>Trees: {stats.trees.toLocaleString()}</li>
                   <li>Rocks: {stats.rocks.toLocaleString()}</li>
                   <li>Grass tufts: {stats.grass.toLocaleString()}</li>
+                  <li>Buildings: {stats.buildings}</li>
                   <li>Map radius: {HALF} m</li>
                 </ul>
               )}
