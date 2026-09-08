@@ -174,6 +174,9 @@ export function TerrainViewer() {
         const prev = resultRef.current;
         if (prev) {
           scene.remove(prev.group);
+          // the imported building geometries/materials are shared templates —
+          // reused on every regenerate, so they must not be disposed here
+          prev.buildings?.removeFromParent();
           prev.group.traverse((o) => {
             const m = o as THREE.Mesh;
             if (m.geometry) m.geometry.dispose();
