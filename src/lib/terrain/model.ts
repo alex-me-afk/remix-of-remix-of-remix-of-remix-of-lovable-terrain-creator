@@ -37,7 +37,12 @@ export type Seg = {
   h1: number;
   h2: number;
   len2: number;
+  /** half width of the carriageway in metres */
+  half: number;
+  /** true for unpaved dirt tracks, false for the paved network */
+  dirt: boolean;
 };
+
 
 export type Tunnel = {
   /** centreline points, ground (floor) level is constant along the tunnel */
@@ -271,7 +276,8 @@ export class TerrainModel {
   }
 
   private buildRoads(rng: () => number) {
-    const pts: [number, number][][] = [];
+    type Line = { pts: [number, number][]; dirt: boolean; half: number };
+    const lines: Line[] = [];
 
     const ringAt = (baseR: number, n: number, noiseSeed: number, amp: number) => {
       const line: [number, number][] = [];
@@ -284,11 +290,13 @@ export class TerrainModel {
       return line;
     };
 
-    pts.push(ringAt(340, 56, 7, 70));
-    pts.push(ringAt(190, 40, 11, 46));
-    pts.push(ringAt(80, 24, 23, 22));
+    // paved main network
+    lines.push({ pts: ringAt(340, 56, 7, 70), dirt: false, half: ROAD_HALF_WIDTH });
+    lines.push({ pts: ringAt(190, 40, 11, 46), dirt: false, half: ROAD_HALF_WIDTH });
+    // inner loop is an unpaved dirt track
+    lines.push({ pts: ringAt(80, 24, 23, 22), dirt: true, half: DIRT_HALF_WIDTH });
 
-    // Radial spokes from the centre out to the coast
+    // Radial spokes from the centre out to the coast (every third one unpaved)
     const spokes = 9;
     const a0 = rng() * Math.PI * 2;
     for (let i = 0; i < spokes; i++) {
@@ -300,10 +308,11 @@ export class TerrainModel {
         const sa = Math.sin(a);
         line.push([ca * d - sa * wob, sa * d + ca * wob]);
       }
-      pts.push(line);
+      const dirt = i % 3 === 2;
+      lines.push({ pts: line, dirt, half: dirt ? DIRT_HALF_WIDTH : ROAD_HALF_WIDTH });
     }
 
-    // Chord connectors between ring sections
+    // Chord connectors between ring sections — all dirt back-roads
     for (let i = 0; i < 8; i++) {
       const aa = rng() * Math.PI * 2;
       const bb = aa + lerp(1.1, 2.2, rng());
@@ -323,11 +332,31 @@ export class TerrainModel {
         const nl = Math.hypot(nx, nz) || 1;
         line.push([lerp(ax, bx, t) + (nx / nl) * bend, lerp(az, bz, t) + (nz / nl) * bend]);
       }
-      pts.push(line);
+      lines.push({ pts: line, dirt: true, half: DIRT_HALF_WIDTH });
+    }
+
+    // Wandering dirt trails across the open country
+    for (let i = 0; i < 10; i++) {
+      const aa = rng() * Math.PI * 2;
+      const ra = lerp(60, LAND_R - 90, rng());
+      const len = lerp(140, 340, rng());
+      let dir = rng() * Math.PI * 2;
+      let x = Math.cos(aa) * ra;
+      let z = Math.sin(aa) * ra;
+      const line: [number, number][] = [[x, z]];
+      const step = 18;
+      for (let d = 0; d < len; d += step) {
+        dir += (fbm(x / 70, z / 70, this.seed + 131 + i, 3) - 0.5) * 0.9;
+        x += Math.cos(dir) * step;
+        z += Math.sin(dir) * step;
+        if (Math.hypot(x, z) > LAND_R - 45) break;
+        line.push([x, z]);
+      }
+      if (line.length > 3) lines.push({ pts: line, dirt: true, half: TRAIL_HALF_WIDTH });
     }
 
     // Convert polylines to height-sampled segments (roads ramp with the land)
-    for (const line of pts) {
+    for (const { pts: line, dirt, half } of lines) {
       // smooth the centerline elevation so roads are drivable ramps
       const hs = line.map(([x, z]) => this.baseHeight(x, z));
       for (let pass = 0; pass < 3; pass++) {
@@ -349,10 +378,13 @@ export class TerrainModel {
           h1: hs[i] ?? 0,
           h2: hs[i + 1] ?? 0,
           len2: (x2 - x1) ** 2 + (z2 - z1) ** 2 || 1e-6,
+          half,
+          dirt,
         });
       }
     }
   }
+
 
   /** bucket the road segments so nearest-road lookups stay fast on a 1500u map */
   private indexRoads() {
