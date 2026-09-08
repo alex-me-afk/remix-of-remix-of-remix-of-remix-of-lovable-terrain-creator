@@ -37,7 +37,12 @@ export type Seg = {
   h1: number;
   h2: number;
   len2: number;
+  /** half width of the carriageway in metres */
+  half: number;
+  /** true for unpaved dirt tracks, false for the paved network */
+  dirt: boolean;
 };
+
 
 export type Tunnel = {
   /** centreline points, ground (floor) level is constant along the tunnel */
